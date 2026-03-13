@@ -5,9 +5,12 @@
 #include <GL/gl.h>
 #include <iostream>
 #include <ostream>
+#include <stdexcept>
 #include <string>
+#include "string.h"
 
 import Debug;
+import Common;
 
 #include <DebugMacros.hpp>
 #ifndef SRCPATH
@@ -20,12 +23,21 @@ void glfwErrorCallbackFun(int code, const char* description);
 
 Debug::Logger *logger;
 
+void Callback(int i, bool j){std::cout<<i << " : " << j <<  std::endl;}
+
 int main()
 {
+
     const char* message = "hello";
     const char* logDirRelPath = "log";
     logger = new Debug::Logger(logDirRelPath);
     logger->write(Debug::INFO,MACRO_STAT,message, 6);
+    
+    Common::Obvc<bool> obvc;
+    obvc.RegisterCallback(0,Callback);
+    obvc.Notify(0,true);
+    
+
     glfwSetErrorCallback(glfwErrorCallbackFun);
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);

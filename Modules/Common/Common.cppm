@@ -34,14 +34,17 @@ template <class T> class Obvc{
                 throw err;
             }
         }
-
+        
         void Notify(int i, T value){
             try{
                 std::vector<void (*) (int, T)> v = obvs->at(i).second;
                 std::for_each(v.cbegin(),v.cend(),[&](void (*callback) (int,T))->void{callback(i,value);});
             }
+            // If key dne, create it and init it with value
             catch(std::out_of_range& err){
-                throw err;
+                std::vector<void (*) (int, T)> empt {};
+                std::pair<T,std::vector<void (*) (int, T)>> in {value,empt};
+                obvs->insert({i,in});
             }
         }
         T Poll(int i){
@@ -50,6 +53,55 @@ template <class T> class Obvc{
             } catch(std::out_of_range& err){
                 throw err;
             }
+        }
+};
+
+class Obbc{
+    private:
+    int *values;
+    std::vector<void (*) ()> *callbacks; 
+    public:
+    Obbc(int nrOfButtons){
+        values = new int[(nrOfButtons / sizeof(int) ) + 1];
+    }
+    void RegisterCallback(int i, void (*callback) ()){
+        callbacks[i].push_back(callback);
+    }
+    void RemoveCallback(int i, void (*callback) ()){
+        std::erase(callbacks[i],callback);
+    }
+    void Notify(int i){
+        std::vector<void (*) ()> v = callbacks[i];
+        std::for_each(v.cbegin(), v.cend(),[](void (*callback) ())->void{callback();});
+        *(values + (i / sizeof(int))) ^= (1 << (i%sizeof(int)));
+    }
+
+    bool Poll(int i){
+        // Don't question the laws of the universe
+        return ((*(values + (i/sizeof(int)))) >> (i%sizeof(int))&1);
+    }
+};
+template <class T> class Obv{
+    private:
+        T val;
+        std::vector<void (*) (T)> callbacks;
+    public:
+        Obv(T init){
+            val = init;
+            callbacks = new std::vector<void (*) (T)>();
+        }
+        void RegisterCallback(void (*callback) (T)){
+            callbacks.push_back(callback); 
+        }
+        void RemoveCallback(void (*callback) (T)){
+            std::erase(callbacks,callback);
+        }
+        void Notify(T val){
+            this->val = val;
+            std::for_each(callbacks.cbegin(),callbacks.cend(),[&](void (*callback) (T))->void {callback(val);});
+        }
+        T Poll(){
+            return val;
         }
 };
 }

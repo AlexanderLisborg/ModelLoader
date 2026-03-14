@@ -59,6 +59,7 @@ target_sources(ModelLoader
         Modules/Debug/Debug.cppm
         Modules/Common/Common.cppm
         Modules/Input/Input.cppm
+        Modules/Graphics/Graphics.cppm
     PRIVATE
         # glad
         Modules/glad/src/glad.c

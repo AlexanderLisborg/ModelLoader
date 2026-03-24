@@ -39,7 +39,10 @@ class FileHandler {
     
     void ReadNextLine(){
             }
-
+    // TODO: fix this method so it follows the format below...
+    // "name : value"
+    // where value is one of {true,false,number,string}
+    // (Make a DFA out of it and then implement accordingly)
     void ReadFile(const char *confDirRelPath, const char *confFileName){
         std::stringstream ss;
         ss << confDirRelPath << "/" << confFileName;

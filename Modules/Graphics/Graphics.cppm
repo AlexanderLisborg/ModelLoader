@@ -1,6 +1,5 @@
 module;
 
-#include <exception>
 #include <glad/glad.h>
 #include "GLFW/glfw3.h"
 #include <GL/gl.h>
@@ -8,7 +7,7 @@ module;
 #include <ostream>
 #include <stdexcept>
 #include <sstream>
-#include <string>
+#include <map>
 #include "string.h"
 
 
@@ -62,6 +61,7 @@ class Window{
     }
     
     void terminateRoutine(){
+        // delete(inputCallbackManager);
         glfwTerminate();
     }
 
@@ -78,6 +78,29 @@ class Window{
     {
         glViewport(0, 0, width, height);
     }
+    void initInput(){
+        
+    }
+};
+
+class InputCallbackManager{
+    private:
+        std::map<int, void (*) ()> *buttonCallbacks;
+        void (*mousePosCallback) (unsigned int);
+        
+    public:
+        InputCallbackManager(){
+            buttonCallbacks = new std::map<int,void (*) ()>;
+
+        }
+        ~InputCallbackManager(){
+            delete(buttonCallbacks);
+        }
+        // Get keybinds from a config file.
+        void initKeyboard(){}
+        // Next input does not trigger any action, instead it rebinds that input to the action. (Safety checks should be performed to prevent soft locks)
+        void rebindActionToNextInput(int i){}
+
 
 };
 

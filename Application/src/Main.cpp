@@ -6,7 +6,6 @@
 #include <iostream>
 #include <ostream>
 #include <stdexcept>
-#include <string>
 #include "string.h"
 
 import Debug;
@@ -37,8 +36,12 @@ int main()
     obvc.Notify(0,true);
     
     Graphics::Window window;
-    window.init();
+    try{
+        window.init();
+    } catch(std::runtime_error& err){
+        logger->write(Debug::ERROR,MACRO_STAT,err.what(),strlen(err.what())-1);
     }
+}
 
 void terminateRoutine(){
     try{delete(logger);}

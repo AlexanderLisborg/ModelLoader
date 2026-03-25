@@ -48,12 +48,19 @@ class FileHandler {
         ss << confDirRelPath << "/" << confFileName;
         std::ifstream file(ss.str());
         char *tempbuffer;
-        // states:
-        // 0 : Before ':'
-        // 1 ... 100 : After ':'
-        // 101 : Error value too long
-        // 102 : Done
-        char state;
+
+        // 0: pre ':'
+        // 1 ... 10: after ':' NUMBER
+        // 11: error long config value
+        // 12: FINAL NUMBER
+        // 13: t 14: r 15: u 16: e FINAL
+        // 17: f 18: a 19: l 20: s 21: e FINAL
+        // 22...121: after ':' CHAR
+        // 122: error long config value
+        // 123: FINAL CHAR
+
+        int number = 0;
+        int state;
         while(state != 102){
             switch(state){
                 char c;
@@ -63,18 +70,89 @@ class FileHandler {
                         state = 1;
                     }
                     break;
-                case 1 ... 100:
+                case 1 ... 10:
                     file.get(c);
                     if(c=='\n')
                         // tempbuffer -> interpret
-                        state = 0;
-                    else {
-                        *(tempbuffer++) = c;
-                        state++;
-                    }
+                        state = 12;
+                    else if(c=='0'){number = (number * 10);     state++;}
+                    else if(c=='1'){number = (number * 10) + 1; state++;}
+                    else if(c=='2'){number = (number * 10) + 2; state++;}
+                    else if(c=='3'){number = (number * 10) + 3; state++;}
+                    else if(c=='4'){number = (number * 10) + 4; state++;}
+                    else if(c=='5'){number = (number * 10) + 5; state++;}
+                    else if(c=='6'){number = (number * 10) + 6; state++;}
+                    else if(c=='7'){number = (number * 10) + 7; state++;}
+                    else if(c=='8'){number = (number * 10) + 8; state++;}
+                    else if(c=='9'){number = (number * 10) + 9; state++;}
+
+                    else if(state == 1 && c=='t'){state = 13;}
+                    else if(state == 1 && c=='f'){state = 17;}
+                    else{state += 23;}
+                    
                     break;
-                case 101:
-                    throw std::runtime_error("Config value larger than 100 characters, format: \"option : value\" where value is under 100 (8bit ascii) characters");
+                case 11:
+                    throw std::runtime_error("Config integer value larger than integer max. (2^32 = 2 147 483 647)");
+                    break;
+                case 12:
+                    // number -> observable ints
+                    break;
+                case 13:
+                    file.get(c);
+                    if(c=='r'){state++;}
+                    else{state=25;}
+                    break;
+                case 14:
+                    file.get(c);
+                    if(c=='u'){state++;}
+                    else{state=26;}
+                    break;
+                case 15:                
+                    file.get(c);        
+                    if(c=='e'){state++;}
+                    else{state=27;}     
+                    break;
+                case 16:
+                    file.get(c);
+                    if(c=='\n'){
+                        // true -> observable bools
+                    }
+                    else{state=28;}
+                    break;
+                case 17:
+                    file.get(c);
+                    if(c=='a'){state++;}
+                    else{state=25;}
+                    break;
+                case 18:
+                    file.get(c);
+                    if(c=='l'){state++;}
+                    else{state=26;}
+                    break;
+                case 19:
+                    file.get(c);
+                    if(c=='s'){state++;}
+                    else{state=27;}
+                    break;
+                case 20:
+                    file.get(c);
+                    if(c=='e'){state++;}
+                    else{state=28;}
+                    break;
+                case 21:
+                    file.get(c);
+                    if(c=='\n'){
+                        // false -> observable bools
+                    }
+                case 22 ... 121:
+                    file.get(c);
+                    if(c=='\n'){state=123;}
+                    else{state++;}
+                case 122:
+                    throw std::runtime_error("Config value too long. max length: 100 ascii characters.");
+                case 123:
+                    // stringValue -> observable strings 
+
             }
             if( std::ios_base::iostate::_S_failbit){
                     throw std::runtime_error("Failed to read config file.");

@@ -1,9 +1,11 @@
 module;
 
+#include <cmath>
 #include <stdexcept>
 #include <ios>
 #include <fstream>
 #include <sstream>
+#include <map>
 
 export module Config;
 import Common;
@@ -26,7 +28,6 @@ class FileHandler {
     Common::Obbc *booleans;
     Common::Obvc<std::string> *strings;
 
-
     public:
     FileHandler(Instance i, const char *confDirRelPath, const char *confFileName){
     buffer = new char[bufferSize];
@@ -36,46 +37,79 @@ class FileHandler {
     
     }
     ~FileHandler(){delete(buffer);}
-    
-    void ReadNextLine(){
+    void WriteFile(const char *confDirRelPath, const char *confFileName){
+        int state;
+        std::stringstream ss;
+        ss << confDirRelPath << "/" << confFileName;
+        std::string path = ss.str(); 
+        std::ifstream fileIn(path);
+        ss.clear();
+        int line = 0;
+        char c;
+        std::vector<std::string> comments;
+        // 0: pre ':'
+        // 1: post ':'
+        for(fileIn.get(c);!std::ios_base::iostate::_S_eofbit;fileIn.get(c)){
+            switch(state){
+                case 0:
+                    if(c==':'){state=1;comments.push_back(ss.str());ss.clear();}
+                    else if(c=='\n'){comments.push_back(ss.str());ss.clear();}
+                    else{ss<<c;}
+                    break;
+                case 1:
+                    if(c=='\n'){state=0;}
+                    break;
             }
-    // TODO: fix this method so it follows the format below...
-    // "name : value"
-    // where value is one of {true,false,number,string}
-    // (Make a DFA out of it and then implement accordingly)
+        }
+        fileIn.close();
+        std::ofstream fileOut(path);
+        
+        for(int i = 0 ; i < comments.size() ; i++){
+            ss.clear();
+            ss<<comments[i];
+            if(booleans->Exists(i)){
+                if(booleans->Poll(i))
+                    ss<<"true";
+                else
+                    ss<<"false";
+            }
+            else if(integers->Exists(i)){ 
+                ss << integers->Poll(i);
+            }
+            else if(strings->Exists(i)){
+                ss << strings->Poll(i);
+            }
+            ss<<"\n";
+            const char* lineOut = ss.str().c_str();
+            fileOut.write(lineOut,ss.str().length());
+        }
+    } 
     void ReadFile(const char *confDirRelPath, const char *confFileName){
         std::stringstream ss;
         ss << confDirRelPath << "/" << confFileName;
         std::ifstream file(ss.str());
-        char *tempbuffer;
-
+        ss.clear();
+        int line = 0;
+        int number = 0;
+        int state = 0;
         // 0: pre ':'
         // 1 ... 10: after ':' NUMBER
         // 11: error long config value
-        // 12: FINAL NUMBER
-        // 13: t 14: r 15: u 16: e FINAL
-        // 17: f 18: a 19: l 20: s 21: e FINAL
-        // 22...121: after ':' CHAR
-        // 122: error long config value
-        // 123: FINAL CHAR
-
-        int number = 0;
-        int state;
-        while(state != 102){
+        // 12: t 13: r 14: u 15: e FINAL
+        // 16: f 17: a 18: l 19: s 20: e FINAL
+        // 21...120: after ':' CHAR
+        // 121: error long config value
+        // 122: END
+        while(state != 122){
             switch(state){
                 char c;
+                if(state != 11 || state != 121){file.get(c);}
+                if(std::ios_base::iostate::_S_failbit){throw std::runtime_error("Error reading config file.");}
                 case 0:
-                    file.get(c);
-                    if(c==':'){
-                        state = 1;
-                    }
+                    if(c==':'){state = 1;}
                     break;
-                case 1 ... 10:
-                    file.get(c);
-                    if(c=='\n')
-                        // tempbuffer -> interpret
-                        state = 12;
-                    else if(c=='0'){number = (number * 10);     state++;}
+                case 1 ... 10:     
+                    if     (c=='0'){number = (number * 10);     state++;}
                     else if(c=='1'){number = (number * 10) + 1; state++;}
                     else if(c=='2'){number = (number * 10) + 2; state++;}
                     else if(c=='3'){number = (number * 10) + 3; state++;}
@@ -86,78 +120,71 @@ class FileHandler {
                     else if(c=='8'){number = (number * 10) + 8; state++;}
                     else if(c=='9'){number = (number * 10) + 9; state++;}
 
-                    else if(state == 1 && c=='t'){state = 13;}
-                    else if(state == 1 && c=='f'){state = 17;}
-                    else{state += 23;}
+                    else if(state == 1 && c=='t'){state = 12;}
+                    else if(state == 1 && c=='f'){state = 16;}
                     
+                    else if(c=='\n'){integers->Notify(line++,number);number=0; state = 0;}
+                    else if(std::ios_base::iostate::_S_eofbit){integers->Notify(line, number);state=122;}
+                    
+                    else{
+                        for(int i = (state-1) ; i > 0 ; i--){
+                            int a = number/(std::pow(10,i));
+                            number -= a;
+                            switch(a){
+                                case 0:ss<<'0';break;case 1:ss<<'1';break;case 2:ss<<'2';break;case 3:ss<<'3';break;case 4:ss<<'4';break;case 5:ss<<'5';break;case 6:ss<<'6';break;case 7:ss<<'7';break;case 8:ss<<'8';break;case 9:ss<<'9';break;
+                            }
+                        }
+                        file.get(c);
+                        ss<<c;
+                        state += 21;
+                    }
                     break;
                 case 11:
                     throw std::runtime_error("Config integer value larger than integer max. (2^32 = 2 147 483 647)");
                     break;
                 case 12:
-                    // number -> observable ints
+                    if(c=='r'){state++;}
+                    else{ss<<'t';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=22;}
                     break;
                 case 13:
-                    file.get(c);
-                    if(c=='r'){state++;}
-                    else{state=25;}
-                    break;
-                case 14:
-                    file.get(c);
                     if(c=='u'){state++;}
-                    else{state=26;}
+                    else{ss<<'t'<<'r';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=23;}
                     break;
-                case 15:                
-                    file.get(c);        
+                case 14:                
                     if(c=='e'){state++;}
-                    else{state=27;}     
+                    else{ss<<'t'<<'r'<<'u';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=24;}     
+                    break;
+                case 15:
+                    if(c=='\n'){booleans->Notify(line++);state = 0;}
+                    if(std::ios_base::iostate::_S_eofbit){booleans->Notify(line);state=122;}
+                    else{ss<<'t'<<'r'<<'u'<<'e';if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=25;}
                     break;
                 case 16:
-                    file.get(c);
-                    if(c=='\n'){
-                        // true -> observable bools
-                    }
-                    else{state=28;}
+                    if(c=='a'){state++;}
+                    else{ss<<'f';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=22;}
                     break;
                 case 17:
-                    file.get(c);
-                    if(c=='a'){state++;}
-                    else{state=25;}
+                    if(c=='l'){state++;}
+                    else{ss<<'f'<<'a'; if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=23;}
                     break;
                 case 18:
-                    file.get(c);
-                    if(c=='l'){state++;}
-                    else{state=26;}
+                    if(c=='s'){state++;}
+                    else{ss<<'f'<<'a'<<'l';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=24;}
                     break;
                 case 19:
-                    file.get(c);
-                    if(c=='s'){state++;}
-                    else{state=27;}
+                    if(c=='e'){state++;}
+                    else{ss<<'f'<<'a'<<'l'<<'s';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=25;}
                     break;
                 case 20:
-                    file.get(c);
-                    if(c=='e'){state++;}
-                    else{state=28;}
-                    break;
-                case 21:
-                    file.get(c);
-                    if(c=='\n'){
-                        // false -> observable bools
-                    }
-                case 22 ... 121:
-                    file.get(c);
-                    if(c=='\n'){state=123;}
+                    if(c=='\n'){state = 0;}
+                    else if(std::ios_base::iostate::_S_eofbit){state=122;}
+                    else{ss<<'f'<<'a'<<'l'<<'s'<<'e';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=26;}
+                case 21 ... 120:
+                    if(c=='\n'){strings->Notify(line, ss.str());ss.clear();state=0;}
+                    else if(std::ios_base::iostate::_S_eofbit){state=122;}
                     else{state++;}
-                case 122:
+                case 121:
                     throw std::runtime_error("Config value too long. max length: 100 ascii characters.");
-                case 123:
-                    // stringValue -> observable strings 
-
-            }
-            if( std::ios_base::iostate::_S_failbit){
-                    throw std::runtime_error("Failed to read config file.");
-            } else if (std::ios_base::iostate::_S_eofbit){
-                 state=2;
             }
         }
     }

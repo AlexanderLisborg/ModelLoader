@@ -19,6 +19,9 @@ template <class T> class Obvc{
             obvs = new std::map<int, std::pair<T,std::vector<void (*) (int,T)>>>;
             
         }
+        ~Obvc(){
+            delete(obvs);
+        }
         // Add callback to observable value i. Creates key if not present in map. 
         // WARNING: CAN ADD DUPLICATES TO LIST OF CALLBACKS. 
         void RegisterCallback(int i, void (*callback) (int, T)){
@@ -47,6 +50,9 @@ template <class T> class Obvc{
                 obvs->insert({i,in});
             }
         }
+        bool Exists(int i){
+            return obvs->contains(i);
+        }
         T Poll(int i){
             try{
                 return obvs->at(i).first;
@@ -59,10 +65,17 @@ template <class T> class Obvc{
 class Obbc{
     private:
     int *values;
+    int *exists;
     std::vector<void (*) ()> *callbacks; 
     public:
     Obbc(int nrOfButtons){
         values = new int[(nrOfButtons / sizeof(int) ) + 1];
+        for(int i = 0 ; i < ((nrOfButtons/sizeof(int))+1) ; i++){
+            values[i]=0;
+        }
+    }
+    ~Obbc(){
+        delete(values);
     }
     void RegisterCallback(int i, void (*callback) ()){
         callbacks[i].push_back(callback);
@@ -71,14 +84,27 @@ class Obbc{
         std::erase(callbacks[i],callback);
     }
     void Notify(int i){
+        if(!Exists(i)){throw std::out_of_range("dne");}
         std::vector<void (*) ()> v = callbacks[i];
         std::for_each(v.cbegin(), v.cend(),[](void (*callback) ())->void{callback();});
         *(values + (i / sizeof(int))) ^= (1 << (i%sizeof(int)));
+        *(exists + (i / sizeof(int))) &= (1 << (i%sizeof(int)));
     }
-
+    void AddValue(int i){
+        *(exists + (i / sizeof(int))) |= (1 << (i % sizeof(int)));
+    }
+    void RemoveValue(int i){
+        callbacks[i].clear();
+        *(exists + (i/sizeof(int))) &= ( (-1) ^ (1 << (i % sizeof(int)) ) );
+    }
+    inline bool Exists(int i){
+        return ((*(exists + (i/sizeof(int))) >> (i%sizeof(int)) )& 1);
+    }
+    
     bool Poll(int i){
+        if(!Exists(i)){throw std::out_of_range("dne");}
         // Don't question the laws of the universe
-        return ((*(values + (i/sizeof(int)))) >> (i%sizeof(int))&1);
+        return (((*(values + (i/sizeof(int)))) >> (i%sizeof(int)) )&1);
     }
 };
 template <class T> class Obv{
@@ -89,6 +115,9 @@ template <class T> class Obv{
         Obv(T init){
             val = init;
             callbacks = new std::vector<void (*) (T)>();
+        }
+        ~Obv(){
+            delete(callbacks);
         }
         void RegisterCallback(void (*callback) (T)){
             callbacks.push_back(callback); 

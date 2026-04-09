@@ -52,14 +52,16 @@ public:
 
 class FileLoggerObserver : public ILoggerObserver{
 private:
-    const char *logDirRelPath = "log";
+    char *logDirRelPath;
     const char *logFileName = "Log.txt";
     const unsigned int bufferSize = 4106; 
     char *buffer;
     int bufferIndex = 0;
 
 public:
-    FileLoggerObserver(const char* logDirRelPath, ILoggerSubject* subject){
+    FileLoggerObserver(const char* logDirRelPath, int lenIncl, ILoggerSubject* subject){
+        this->logDirRelPath = new char[lenIncl];
+        strcpy(this->logDirRelPath, logDirRelPath);
         buffer= new char[bufferSize];
         for(int i = 0; i < bufferSize ; i++){*(buffer+i) = '\0';} 
         if(!std::filesystem::exists(logDirRelPath)){
@@ -74,6 +76,7 @@ public:
     }
     ~FileLoggerObserver(){
         writeBufferToFile();
+        delete(logDirRelPath);
         delete(buffer);
     }
 // METHODS
@@ -94,10 +97,10 @@ private:
         fileStream.close();
         bufferIndex=0;
     }
-    inline void writeToBuffer(const char* chars, char lenInclude){
-        while(lenInclude>1){
+    inline void writeToBuffer(const char* chars, char lenIncl){
+        while(lenIncl>1){
             *(buffer+(bufferIndex++))= *(chars++);
-            lenInclude--;
+            lenIncl--;
         }
     }
     inline void writeToBuffer(const char c){
@@ -105,6 +108,11 @@ private:
     }
     
 public:
+    void changeDir(const char *logDirRelPath, int lenIncl){
+        delete(this->logDirRelPath); 
+        this->logDirRelPath = new char[lenIncl];
+        strcpy(this->logDirRelPath,logDirRelPath);
+    }
     void update(LogLevel level, const Stat stat, const char *const message, unsigned int length) override{ 
         // Find end of string char
         if( (*(message + length-1)!='\0'))
@@ -147,8 +155,8 @@ private:
     std::vector<ILoggerObserver*> observers;
     public:
     Logger(){}
-    Logger(const char* logDirRelPath){
-        ILoggerObserver* a = new FileLoggerObserver(logDirRelPath,this);
+    Logger(const char* logDirRelPath, int lenIncl){
+        ILoggerObserver* a = new FileLoggerObserver(logDirRelPath,lenIncl,this);
         observers.push_back(a);
     }
     ~Logger(){

@@ -27,8 +27,8 @@ int main()
 {
 
     const char* message = "hello";
-    const char* logDirRelPath = "log";
-    logger = new Debug::Logger(logDirRelPath);
+    const char* logDirRelPath = "loga";
+    logger = new Debug::Logger(logDirRelPath,strlen(logDirRelPath));
     logger->write(Debug::INFO,MACRO_STAT,message, 6);
     
     Common::Obvc<bool> obvc;
@@ -41,6 +41,7 @@ int main()
     } catch(std::runtime_error& err){
         logger->write(Debug::ERROR,MACRO_STAT,err.what(),strlen(err.what())-1);
     }
+    terminateRoutine();
 }
 
 void terminateRoutine(){

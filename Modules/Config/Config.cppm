@@ -1,11 +1,11 @@
 module;
 
+#include <vector>
 #include <cmath>
 #include <stdexcept>
 #include <ios>
 #include <fstream>
 #include <sstream>
-#include <map>
 
 export module Config;
 import Common;
@@ -19,10 +19,9 @@ class Instance{
 
 class FileHandler {
     private:
-    const char* confDirRelPath;
-    const char* confFileName;
+    const char *confDirRelPath;
+    const char *confFileName;
     const unsigned int bufferSize = 4106;
-    char *buffer;
     int bufferIndex = 0; 
     Common::Obvc<int> *integers;
     Common::Obbc *booleans;
@@ -30,13 +29,17 @@ class FileHandler {
 
     public:
     FileHandler(Instance i, const char *confDirRelPath, const char *confFileName){
-    buffer = new char[bufferSize];
-    for(int i = 0 ; i < bufferSize ; i++){
-        *(buffer + i)='\0';
+        integers = new Common::Obvc<int>();
+        booleans = new Common::Obbc(128); // Max 128 boolean configs can be loaded at once.
+        strings = new Common::Obvc<std::string>();
+        
     }
-    
+    ~FileHandler(){
+        WriteFile();
+        delete(integers);
+        delete(booleans);
+        delete(strings);
     }
-    ~FileHandler(){delete(buffer);}
     void WriteFile(const char *confDirRelPath, const char *confFileName){
         int state;
         std::stringstream ss;

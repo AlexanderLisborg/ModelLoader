@@ -6,6 +6,8 @@ module;
 #include <ios>
 #include <fstream>
 #include <sstream>
+#include <string.h>
+#include <filesystem>
 
 export module Config;
 import Common;
@@ -13,14 +15,10 @@ import Common;
 export namespace Config{
 
 // Singleton ? Mayb not since it has a definite place it will be initialized
-class Instance{
-
-};
-
-class FileHandler {
+class Instance {
     private:
-    const char *confDirRelPath;
-    const char *confFileName;
+    char *confDirRelPath;
+    const char *confFileName = "Conf.txt";
     const unsigned int bufferSize = 4106;
     int bufferIndex = 0; 
     Common::Obvc<int> *integers;
@@ -28,19 +26,36 @@ class FileHandler {
     Common::Obvc<std::string> *strings;
 
     public:
-    FileHandler(Instance i, const char *confDirRelPath, const char *confFileName){
+    Instance(const char *confDirRelPath, int lenIncl){
+        this->confDirRelPath = new char[lenIncl];
+        strcpy(this->confDirRelPath,confDirRelPath);
         integers = new Common::Obvc<int>();
         booleans = new Common::Obbc(128); // Max 128 boolean configs can be loaded at once.
         strings = new Common::Obvc<std::string>();
+        // Create directory at specified path if it does not already exist. If creation fails, throw error. 
+        if(!std::filesystem::exists(confDirRelPath)){ 
+            try{
+                if(!std::filesystem::create_directory(confDirRelPath)) {
+                    throw std::runtime_error("Error creating config directory. std::filesystem::create_directory returned false.");
+                }
+            } 
+            catch(std::filesystem::filesystem_error &err){
+                throw err;
+            }
+            catch(std::bad_alloc &err){
+                throw err; 
+            }       
+        }
         
     }
-    ~FileHandler(){
+    ~Instance(){
         WriteFile();
+        delete(confDirRelPath);
         delete(integers);
         delete(booleans);
         delete(strings);
     }
-    void WriteFile(const char *confDirRelPath, const char *confFileName){
+    void WriteFile(){
         int state;
         std::stringstream ss;
         ss << confDirRelPath << "/" << confFileName;
@@ -87,7 +102,7 @@ class FileHandler {
             fileOut.write(lineOut,ss.str().length());
         }
     } 
-    void ReadFile(const char *confDirRelPath, const char *confFileName){
+    void ReadFile(){
         std::stringstream ss;
         ss << confDirRelPath << "/" << confFileName;
         std::ifstream file(ss.str());
@@ -190,11 +205,7 @@ class FileHandler {
                     throw std::runtime_error("Config value too long. max length: 100 ascii characters.");
             }
         }
-    }
-    void WriteFile(){
-    
-    }
-        
+    }     
 };
 
 }

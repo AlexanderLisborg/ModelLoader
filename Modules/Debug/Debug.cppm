@@ -1,5 +1,7 @@
 
 module;
+#include <sstream>
+#include <string>
 #include <stdlib.h>
 #include <cmath>
 #include <cstdio>
@@ -37,16 +39,16 @@ enum LogLevel{
 // Pure observer interface
 class ILoggerObserver{
 public:
-    virtual void update(LogLevel level, const Stat stat, const char *const message, unsigned int length) = 0;
+    virtual void Update(LogLevel level, const Stat stat, const char *const message, unsigned int length) = 0;
     virtual ~ILoggerObserver(){}
 };
 // Pure subject interface
 class ILoggerSubject{
 public:
-    virtual void registerObserver(ILoggerObserver* observer) = 0;
-    virtual void unRegisterObserver(ILoggerObserver* observer) = 0;
+    virtual void RegisterObserver(ILoggerObserver* observer) = 0;
+    virtual void UnRegisterObserver(ILoggerObserver* observer) = 0;
     virtual ~ILoggerSubject(){}
-    virtual void write(LogLevel level, const Stat stat, const char *const message, unsigned int length) = 0;
+    virtual void Write(LogLevel level, const Stat stat, const char *const message, unsigned int length) = 0;
 };
 
 
@@ -57,6 +59,7 @@ private:
     const unsigned int bufferSize = 4106; 
     char *buffer;
     int bufferIndex = 0;
+    bool directoryInitialized = 0;
 
 public:
     FileLoggerObserver(const char* logDirRelPath, int lenIncl, ILoggerSubject* subject){
@@ -64,56 +67,110 @@ public:
         strcpy(this->logDirRelPath, logDirRelPath);
         buffer= new char[bufferSize];
         for(int i = 0; i < bufferSize ; i++){*(buffer+i) = '\0';} 
-        if(!std::filesystem::exists(logDirRelPath)){
-            std::filesystem::create_directory(logDirRelPath);
-            char msg0[] = "Log directory created...";
-            subject->write(INFO,MACRO_STAT,msg0, std::size(msg0));
+        if(!std::filesystem::exists(logDirRelPath)){ 
+            try{
+                if(!std::filesystem::create_directory(logDirRelPath)) {
+                    const char msg[] = "Error creating log directory.";
+                    subject->Write(ERROR, MACRO_STAT, msg, std::size(msg));
+                } else {
+                    directoryInitialized = true;
+                    const char msg[] = "Log directory created.";
+                    subject->Write(INFO,MACRO_STAT,msg, std::size(msg));
+                }
+            } 
+            catch(std::filesystem::filesystem_error &err){
+                std::stringstream ss; 
+                ss << "std::filesystem::create_directory filesystem_error. Failed on path \"" << err.path1()<< "\". OS error code " <<err.code().value()<<". Error message \""<<err.what()<<"\"";
+                subject->Write(ERROR,MACRO_STAT,ss.str().c_str(),ss.str().size()+1);} 
+            catch(std::bad_alloc &err){
+                const char msg[] = "std::filesystem::create_directory bad alloc.";
+                subject->Write(ERROR, MACRO_STAT, msg,std::size(msg)); 
+            }       
         }
-        std::string msg1 = (std::string(__func__) + "FileLoggerObserver initialized with buffer size: " + std::to_string((bufferSize * sizeof(char))));
-        subject->write(INFO,MACRO_STAT,msg1.c_str(),msg1.length());
+        std::string msg1 = ("FileLoggerObserver initialized with buffer size: " + std::to_string((bufferSize * sizeof(char))));
+        subject->Write(INFO,MACRO_STAT,msg1.c_str(),msg1.length());
         std::string msg2 = ("Large buffer size.");
-        if(bufferSize>4106){subject->write(WARNING,MACRO_STAT,msg2.c_str(),msg2.length());}
+        if(bufferSize>4106){subject->Write(WARNING,MACRO_STAT,msg2.c_str(),msg2.length());}
     }
     ~FileLoggerObserver(){
-        writeBufferToFile();
+        WriteBufferToFile();
         delete(logDirRelPath);
         delete(buffer);
     }
 // METHODS
 private:    
-    void writeBufferToFile(){
-        std::cout<<"Writing to file..."<<std::endl;
+    void WriteBufferToFile(){
+        if(!directoryInitialized) return; // Do nothing if directory was not initialized...
         std::ofstream fileStream;
         std::stringstream ss;
         ss << logDirRelPath << "/" << logFileName;
         std::cout<<std::endl<< logDirRelPath<<std::endl<<logFileName<<std::endl;
         fileStream.open(ss.str());
+        if(!fileStream.is_open()){throw new std::runtime_error("Failed to open log file.");}
+        
         for(int j = 0 ; j < bufferIndex ; j++){
             std::cout<< *(buffer+j);
         }
         for(int i = 0 ; i < bufferIndex ; i++){
-            fileStream<<*(buffer+i);
+            if(!fileStream<<*(buffer+i)){throw new std::runtime_error("Failed to write to fileStream.");}
         }
         fileStream.close();
+        if(fileStream.failbit)
+            throw new std::runtime_error("Failed to close fileStream, data not written to disk properly.");
         bufferIndex=0;
     }
-    inline void writeToBuffer(const char* chars, char lenIncl){
+    inline void WriteToBuffer(const char* chars, char lenIncl){
         while(lenIncl>1){
             *(buffer+(bufferIndex++))= *(chars++);
             lenIncl--;
         }
     }
-    inline void writeToBuffer(const char c){
+    inline void WriteToBuffer(const char c){
         *(buffer + (bufferIndex++)) = c; 
     }
-    
-public:
-    void changeDir(const char *logDirRelPath, int lenIncl){
+    // Helper function used in ChangeDir(). Reallocates path and copies arg.
+    inline void ReallocLogDirRelPath(const char* logDirRelPath, int lenIncl){
+        directoryInitialized = true;
         delete(this->logDirRelPath); 
         this->logDirRelPath = new char[lenIncl];
         strcpy(this->logDirRelPath,logDirRelPath);
     }
-    void update(LogLevel level, const Stat stat, const char *const message, unsigned int length) override{ 
+    
+public:
+    // Try to change dir, if it dne, attempt to create it. If creation fails, keep old path and return false. Return true on successfull change.
+    bool ChangeDir(const char *logDirRelPath, int lenIncl, ILoggerSubject* subject){
+        if(!std::filesystem::exists(logDirRelPath)){ 
+            try{
+                if(!std::filesystem::create_directory(logDirRelPath)) {
+                    const char msg[] = "Error creating log directory.";
+                    subject->Write(ERROR,MACRO_STAT,msg,std::size(msg));
+                    return false;
+                } else {
+                    ReallocLogDirRelPath(logDirRelPath, lenIncl); 
+                    std::stringstream ss ; 
+                    ss<<"Log directory created at \""<< logDirRelPath <<"\"";
+                    subject->Write(INFO,MACRO_STAT,ss.str().c_str(), ss.str().length()+1);
+                    return true;
+                }
+            } 
+            catch(std::filesystem::filesystem_error &err){
+                std::stringstream ss; 
+                ss << "std::filesystem::create_directory filesystem_error. Failed on path \"" << err.path1()<< "\". OS error code " <<err.code().value()<<". Error message \""<<err.what()<<"\"";
+                subject->Write(ERROR,MACRO_STAT,ss.str().c_str(),ss.str().size()+1); 
+                return false;
+            }
+            catch(std::bad_alloc &err){
+                const char msg[] = "std::filesystem::create_directory bad alloc.";
+                subject->Write(ERROR, MACRO_STAT, msg,std::size(msg)); 
+                return false;
+            } 
+        } else {
+            ReallocLogDirRelPath(logDirRelPath, lenIncl);
+            return true;
+        }
+
+    }
+    void Update(LogLevel level, const Stat stat, const char *const message, unsigned int length) override{ 
         // Find end of string char
         if( (*(message + length-1)!='\0'))
             throw std::out_of_range("Incorrect message length.");
@@ -128,23 +185,23 @@ public:
             break;
             default: throw std::invalid_argument("Invalid LogLevel arg.");
         }
-        writeToBuffer(levelChars,lenInclude);
+        WriteToBuffer(levelChars,lenInclude);
         unsigned int messageIndex = 0; 
         while(*(message+(messageIndex)) != '\0'){
             *(buffer+bufferIndex) = *(message+messageIndex);
             messageIndex++;
             bufferIndex++;
             if(bufferIndex >= bufferSize-1)
-                writeBufferToFile(); // Resets bufferIndex
+                WriteBufferToFile(); // Resets bufferIndex
         }
-        writeToBuffer('{');
+        WriteToBuffer('{');
         for(int i = 0 ; i < stat.srcLen-1 ; i++){*(buffer+(bufferIndex++))= *(stat.src+i); }
-        writeToBuffer(" ; ", 4);
+        WriteToBuffer(" ; ", 4);
         for(int i = 0 ; i < stat.funLen-1 ; i++){*(buffer+(bufferIndex++))= *(stat.fun+i); }
-        writeToBuffer(" ; ", 4);
+        WriteToBuffer(" ; ", 4);
         for(int i = 0 ; i < stat.lineLen-1 ; i++){*(buffer+(bufferIndex++))= *(stat.line+i); }
-        writeToBuffer('}');
-        writeToBuffer('\n');
+        WriteToBuffer('}');
+        WriteToBuffer('\n');
         
         *(buffer+bufferIndex++) = '\n';
     }
@@ -170,18 +227,18 @@ private:
 
 // Interface implementations
 public: 
-    void write(LogLevel level, const Stat stat, const char *const message, unsigned int length) override {
+    void Write(LogLevel level, const Stat stat, const char *const message, unsigned int length) override {
         std::cout << "Length : " << observers.size()<< std::endl;
         for( ILoggerObserver* observer : observers) {
-            observer->update(level, stat, message, length);
+            observer->Update(level, stat, message, length);
         }
     } 
     
-    void registerObserver(ILoggerObserver *observer) override {
+    void RegisterObserver(ILoggerObserver *observer) override {
         observers.push_back(observer);
     }
     
-    void unRegisterObserver(ILoggerObserver* observer) override {
+    void UnRegisterObserver(ILoggerObserver* observer) override {
         observers.erase(std::find(observers.begin(),observers.end(),observer));
     }
 };

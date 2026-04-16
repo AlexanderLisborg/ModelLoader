@@ -8,6 +8,7 @@ module;
 #include <sstream>
 #include <string.h>
 #include <filesystem>
+#include <iostream>
 
 export module Config;
 import Common;
@@ -56,22 +57,25 @@ class Instance {
         delete(strings);
     }
     void WriteFile(){
-        int state;
+        int state = 0;
         std::stringstream ss;
         ss << confDirRelPath << "/" << confFileName;
         std::string path = ss.str(); 
         std::ifstream fileIn(path);
+        ss.str("");
         ss.clear();
         int line = 0;
         char c;
         std::vector<std::string> comments;
         // 0: pre ':'
         // 1: post ':'
-        for(fileIn.get(c);!std::ios_base::iostate::_S_eofbit;fileIn.get(c)){
+        std::cout<<"WriteFile...";
+        for(fileIn.get(c);!fileIn.eof();fileIn.get(c)){
+            std::cout<<"running loop 1"<<state<<fileIn.eof()<<"\n";
             switch(state){
                 case 0:
-                    if(c==':'){state=1;comments.push_back(ss.str());ss.clear();}
-                    else if(c=='\n'){comments.push_back(ss.str());ss.clear();}
+                    if(c==':'){state=1;comments.push_back(ss.str());ss.clear();ss.str("");}
+                    else if(c=='\n'){comments.push_back(ss.str());ss.clear();ss.str("");}
                     else{ss<<c;}
                     break;
                 case 1:
@@ -80,9 +84,12 @@ class Instance {
             }
         }
         fileIn.close();
+        std::cout<<"End read, begin write \n";
         std::ofstream fileOut(path);
         
         for(int i = 0 ; i < comments.size() ; i++){
+            std::cout<<"Running loop2"<<comments[i]<<"\n";
+            ss.str("");
             ss.clear();
             ss<<comments[i];
             if(booleans->Exists(i)){
@@ -106,6 +113,7 @@ class Instance {
         std::stringstream ss;
         ss << confDirRelPath << "/" << confFileName;
         std::ifstream file(ss.str());
+        ss.str("");
         ss.clear();
         int line = 0;
         int number = 0;
@@ -142,7 +150,7 @@ class Instance {
                     else if(state == 1 && c=='f'){state = 16;}
                     
                     else if(c=='\n'){integers->Notify(line++,number);number=0; state = 0;}
-                    else if(std::ios_base::iostate::_S_eofbit){integers->Notify(line, number);state=122;}
+                    else if(file.eof()){integers->Notify(line, number);state=122;}
                     
                     else{
                         for(int i = (state-1) ; i > 0 ; i--){
@@ -162,50 +170,78 @@ class Instance {
                     break;
                 case 12:
                     if(c=='r'){state++;}
-                    else{ss<<'t';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=22;}
+                    else{ss<<'t';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();ss.str("");state=0;}else if(file.eof()){strings->Notify(line, ss.str());state=122;} else state=22;}
                     break;
                 case 13:
                     if(c=='u'){state++;}
-                    else{ss<<'t'<<'r';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=23;}
+                    else{ss<<'t'<<'r';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();ss.str("");state=0;}else if(file.eof()){strings->Notify(line, ss.str());state=122;} else state=23;}
                     break;
                 case 14:                
                     if(c=='e'){state++;}
-                    else{ss<<'t'<<'r'<<'u';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=24;}     
+                    else{ss<<'t'<<'r'<<'u';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();ss.str("");state=0;}else if(file.eof()){strings->Notify(line, ss.str());state=122;} else state=24;}     
                     break;
                 case 15:
                     if(c=='\n'){booleans->Notify(line++);state = 0;}
-                    if(std::ios_base::iostate::_S_eofbit){booleans->Notify(line);state=122;}
-                    else{ss<<'t'<<'r'<<'u'<<'e';if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=25;}
+                    if(file.eof()){booleans->Notify(line);state=122;}
+                    else{ss<<'t'<<'r'<<'u'<<'e';if(file.eof()){strings->Notify(line, ss.str());state=122;} else state=25;}
                     break;
                 case 16:
                     if(c=='a'){state++;}
-                    else{ss<<'f';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=22;}
+                    else{ss<<'f';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();ss.str("");state=0;}else if(file.eof()){strings->Notify(line, ss.str());state=122;} else state=22;}
                     break;
                 case 17:
                     if(c=='l'){state++;}
-                    else{ss<<'f'<<'a'; if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=23;}
+                    else{ss<<'f'<<'a'; if(c=='\n'){strings->Notify(line,ss.str());ss.clear();ss.str("");state=0;}else if(file.eof()){strings->Notify(line, ss.str());state=122;} else state=23;}
                     break;
                 case 18:
                     if(c=='s'){state++;}
-                    else{ss<<'f'<<'a'<<'l';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=24;}
+                    else{ss<<'f'<<'a'<<'l';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();ss.str("");state=0;}else if(file.eof()){strings->Notify(line, ss.str());state=122;} else state=24;}
                     break;
                 case 19:
                     if(c=='e'){state++;}
-                    else{ss<<'f'<<'a'<<'l'<<'s';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=25;}
+                    else{ss<<'f'<<'a'<<'l'<<'s';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();ss.str("");state=0;}else if(file.eof()){strings->Notify(line, ss.str());state=122;} else state=25;}
                     break;
                 case 20:
                     if(c=='\n'){state = 0;}
-                    else if(std::ios_base::iostate::_S_eofbit){state=122;}
-                    else{ss<<'f'<<'a'<<'l'<<'s'<<'e';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();state=0;}else if(std::ios_base::iostate::_S_eofbit){strings->Notify(line, ss.str());state=122;} else state=26;}
+                    else if(file.eof()){state=122;}
+                    else{ss<<'f'<<'a'<<'l'<<'s'<<'e';if(c=='\n'){strings->Notify(line,ss.str());ss.clear();ss.str("");state=0;}else if(file.eof()){strings->Notify(line, ss.str());state=122;} else state=26;}
                 case 21 ... 120:
-                    if(c=='\n'){strings->Notify(line, ss.str());ss.clear();state=0;}
-                    else if(std::ios_base::iostate::_S_eofbit){state=122;}
+                    if(c=='\n'){strings->Notify(line, ss.str());ss.clear();ss.str("");state=0;}
+                    else if(file.eof()){state=122;}
                     else{state++;}
                 case 121:
                     throw std::runtime_error("Config value too long. max length: 100 ascii characters.");
             }
         }
-    }     
+    }
+    // Unique add, return false on fail
+    bool SetConf(int index, int val){
+        if(integers->Exists(index))
+            return false;
+        else{
+            integers->Notify(index, val);
+            return true;
+        } 
+    }
+    bool SetConf(int index, bool val){
+        if(integers->Exists(index))
+            return false;
+        else{
+            booleans->AddValue(index);
+            if(val)
+                booleans->Notify(index);
+            return true;
+        }
+    }
+    bool SetConf(int index, std::string val){
+        if(strings->Exists(index))
+            return false;
+        else{
+            strings->Notify(index,val);
+            return true;
+        }
+    }
+
 };
 
 }

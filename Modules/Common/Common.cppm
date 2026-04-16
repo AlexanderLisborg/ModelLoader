@@ -1,3 +1,5 @@
+#include <cstddef>
+#include <iterator>
 module;
 
 #include <stdexcept>
@@ -15,6 +17,15 @@ template <class T> class Obvc{
         std::map<int, std::pair<T,std::vector<void (*) (int, T)>>>* obvs;
 
     public:
+        // TODO: Implement operators according to https://stackoverflow.com/questions/37031805/preparation-for-stditerator-being-deprecated/38103394
+        class Iterator{
+            // Iterator traits
+            using iterator_category = std::forward_iterator_tag;
+            using value_type = T;
+            using difference_type = ptrdiff_t;
+            using pointer = T*;
+            using reference = T&;
+        };
         Obvc(){
             obvs = new std::map<int, std::pair<T,std::vector<void (*) (int,T)>>>;
             
@@ -60,6 +71,7 @@ template <class T> class Obvc{
                 throw err;
             }
         }
+        
 };
 
 class Obbc{
@@ -70,12 +82,15 @@ class Obbc{
     public:
     Obbc(int nrOfButtons){
         values = new int[(nrOfButtons / sizeof(int) ) + 1];
+        exists = new int[(nrOfButtons / sizeof(int) ) + 1];
         for(int i = 0 ; i < ((nrOfButtons/sizeof(int))+1) ; i++){
             values[i]=0;
+            exists[i]=0;
         }
     }
     ~Obbc(){
         delete(values);
+        delete(exists);
     }
     void RegisterCallback(int i, void (*callback) ()){
         callbacks[i].push_back(callback);

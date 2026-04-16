@@ -34,7 +34,9 @@ int main()
     
     Common::Obvc<bool> obvc;
     const char confDirRelPath[] = "conf";
-    confInstance = new Config::Instance(confDirRelPath,std::size(confDirRelPath)); // Throws uncaught errors on fail. (as intended) 
+    confInstance = new Config::Instance(confDirRelPath,std::size(confDirRelPath)); // Throws uncaught errors on fail. (as intended)
+    //confInstance->SetConf(0,10);
+    //confInstance->SetConf(1,false);
     obvc.RegisterCallback(0,Callback);
     obvc.Notify(0,true);
     

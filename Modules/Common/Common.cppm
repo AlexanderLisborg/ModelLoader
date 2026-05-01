@@ -1,7 +1,7 @@
+
+module;
 #include <cstddef>
 #include <iterator>
-module;
-
 #include <stdexcept>
 #include<vector>
 #include<map>
@@ -17,15 +17,31 @@ template <class T> class Obvc{
         std::map<int, std::pair<T,std::vector<void (*) (int, T)>>>* obvs;
 
     public:
-        // TODO: Implement operators according to https://stackoverflow.com/questions/37031805/preparation-for-stditerator-being-deprecated/38103394
         class Iterator{
+            public:
+            std::map<int,std::pair<T,std::vector<void (*) (int, T)>>>::iterator it;
             // Iterator traits
             using iterator_category = std::forward_iterator_tag;
-            using value_type = T;
+            using value_type = std::pair<int,std::pair<T,std::vector<void (*) (int, T)>>>;
             using difference_type = ptrdiff_t;
-            using pointer = T*;
-            using reference = T&;
+            using pointer = std::pair<int,std::pair<T,std::vector<void (*) (int, T)>>>*;
+            using reference = std::pair<int,std::pair<T,std::vector<void (*) (int, T)>>>&;
+            // iterator behaviour
+            Iterator(std::map<int, std::pair<T,std::vector<void (*) (int, T)>>>* obvs,bool b){if(b) {it = obvs->end();} else {it = obvs->begin();}}
+            // Prefix operator
+            Iterator& operator++() {++it; return *this;}
+            // Postfix operator
+            Iterator operator++(int) {Iterator retval = *this; ++(*this); return retval;}
+            bool operator==(Iterator other) const {return it == other.it;}
+            bool operator!=(Iterator other) const {return !(*this == other);}
+            std::pair<int,std::pair<T,std::vector<void (*) (int, T)>>> Get(){return std::pair<int,std::pair<T,std::vector<void (*) (int, T)>>>(it->first,it->second);} 
         };
+        Iterator Begin(){
+            return Iterator(obvs,false);
+        }
+        Iterator End(){
+           return Iterator(obvs,true); 
+        }
         Obvc(){
             obvs = new std::map<int, std::pair<T,std::vector<void (*) (int,T)>>>;
             
@@ -78,8 +94,10 @@ class Obbc{
     private:
     int *values;
     int *exists;
+
     std::vector<void (*) ()> *callbacks; 
     public:
+    int nrOfButtons;
     Obbc(int nrOfButtons){
         values = new int[(nrOfButtons / sizeof(int) ) + 1];
         exists = new int[(nrOfButtons / sizeof(int) ) + 1];
@@ -87,6 +105,7 @@ class Obbc{
             values[i]=0;
             exists[i]=0;
         }
+        this->nrOfButtons = nrOfButtons;
     }
     ~Obbc(){
         delete(values);
@@ -120,6 +139,67 @@ class Obbc{
         if(!Exists(i)){throw std::out_of_range("dne");}
         // Don't question the laws of the universe
         return (((*(values + (i/sizeof(int)))) >> (i%sizeof(int)) )&1);
+    }
+    class Iterator{
+        private:
+        int *values;
+        int currentValue;
+        int *exists;
+        int currentExist;
+        int nrOfButtons;
+        char count32;
+        public:
+        int index;
+        // Iterator traits
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = std::pair<bool,bool>;
+        using difference_type = ptrdiff_t;
+        using pointer = std::pair<bool,bool>*;
+        using reference = std::pair<bool,bool>&;
+        // iterator behaviour
+        Iterator(Obbc *obbc, bool end){
+            index = 0;
+            count32 = 0;
+            nrOfButtons = obbc->nrOfButtons;
+            values = obbc->values;
+            exists = obbc->exists;
+            if(end){
+                int lastB;
+                for(int i = 0 ; i < sizeof(int) ; i++){
+                    if((exists[(nrOfButtons-1 / sizeof(int))]>>i)&1){
+                       lastB = i;
+                    }
+                }
+                index = lastB + (nrOfButtons-1 / sizeof(int));
+                currentExist = exists[nrOfButtons-1 / sizeof(int)]>>lastB;
+                currentValue = values[nrOfButtons-1 / sizeof(int)]>>lastB;
+            }
+        }
+        // Prefix operator
+        Iterator& operator++() {
+            ++index;
+            if(count32 == 31){
+                currentExist = exists[index / 32];
+                currentValue = values[index / 32];
+                count32 = 0;
+            } else {
+                ++count32;
+                currentExist = currentExist >> 1;
+                currentValue = currentValue >> 1;
+            }
+            return *this;
+        }
+        // Postfix operator
+        Iterator operator++(int) {Iterator retval = *this; ++(*this); return retval;}
+        bool operator==(Iterator other) const {return index == other.index;}
+        bool operator!=(Iterator other) const {return !(*this == other);}
+        std::pair<bool,bool> Get(){return std::pair(currentExist&1,currentValue&1);} 
+    };
+    Iterator Begin(){
+        return Iterator(this, false);
+    }
+    Iterator End(){
+        return Iterator(this, true); 
     }
 };
 template <class T> class Obv{

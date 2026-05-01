@@ -1,12 +1,8 @@
-
-#include <exception>
 #include <glad/glad.h>
 #include "GLFW/glfw3.h"
 #include <GL/gl.h>
 #include <iostream>
-#include <ostream>
-#include <stdexcept>
-#include "string.h"
+#include <string.h>
 
 import Debug;
 import Common;
@@ -33,6 +29,14 @@ int main()
     logger->Write(Debug::INFO,MACRO_STAT,message, strlen(message)+1);
     
     Common::Obvc<bool> obvc;
+    obvc.Notify(10,true);
+    obvc.Notify(100,false);
+    obvc.Notify(5,true);
+    std::cout << "get start \n";
+    for(Common::Obvc<bool>::Iterator iter = obvc.Begin(); (iter != obvc.End()) ; ++iter){
+        std::cout << iter.Get().first<< "\n";
+    }
+    Common::Obvc<bool>::Iterator it = obvc.Begin();
     const char confDirRelPath[] = "conf";
     confInstance = new Config::Instance(confDirRelPath,std::size(confDirRelPath)); // Throws uncaught errors on fail. (as intended)
     //confInstance->SetConf(0,10);
